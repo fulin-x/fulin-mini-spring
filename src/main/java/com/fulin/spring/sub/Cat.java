@@ -9,4 +9,12 @@ import com.fulin.spring.Component;
  **/
 @Component
 public class Cat {
+
+    @Autowired
+    private Dog dog;
+
+    @PostConstruct
+    public void init() {
+        System.out.println("cat init 属性:" + dog);
+    }
 }

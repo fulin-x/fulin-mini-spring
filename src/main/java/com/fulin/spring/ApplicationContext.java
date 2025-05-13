@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -24,42 +26,62 @@ public class ApplicationContext {
         initContext(packageName);
     }
 
-    private Map<String,Object> ioc = new HashMap<>();
+    private Map<String, BeanDefinition> beanDefinitionMap = new HashMap<>();
 
-    public void initContext(String packageName) throws Exception{
-        scanPackage(packageName).stream().filter(this::scanCreate).map(this::wrapper).forEach(this::createBean);
+    private Map<String, Object> ioc = new HashMap<>();
+
+    public void initContext(String packageName) throws Exception {
+        scanPackage(packageName).stream().filter(this::scanCreate).forEach(this::wrapper);
+        beanDefinitionMap.values().forEach(this::createBean);
     }
 
-    protected  boolean scanCreate(Class<?> type){
+    protected boolean scanCreate(Class<?> type) {
         return type.isAnnotationPresent(Component.class);
     }
 
-    protected void createBean(BeanDefinition beanDefinition){
+    protected Object createBean(BeanDefinition beanDefinition) {
         System.out.println("创建bean");
         String name = beanDefinition.getName();
         if (ioc.containsKey(name)) {
-            return;
+            return ioc.get(name);
         }
-        doCreateBean(beanDefinition);
+        return doCreateBean(beanDefinition);
     }
 
-    private void doCreateBean(BeanDefinition beanDefinition) {
+    private Object doCreateBean(BeanDefinition beanDefinition) {
         Constructor<?> constructor = beanDefinition.getConstructor();
         Object bean = null;
         try {
             bean = constructor.newInstance();
+            autowiredBean(bean,beanDefinition);
+            Method postConstructMethod = beanDefinition.getPostConstructMethod();
+            if (postConstructMethod != null) {
+                postConstructMethod.invoke(bean);
+            }
+            ioc.put(beanDefinition.getName(), bean);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        ioc.put(beanDefinition.getName(),bean);
+        return bean;
     }
 
-    protected BeanDefinition wrapper(Class<?> type){
-        return new BeanDefinition(type);
+    private void autowiredBean(Object bean, BeanDefinition beanDefinition) throws IllegalAccessException {
+        for (Field autowriedField : beanDefinition.getAutowriedFields()) {
+            autowriedField.setAccessible(true);
+            Object autowiredBean = null;
+            autowriedField.set(bean, ioc.get(autowriedField.getName()));
+        }
     }
 
-    private List<Class<?>> scanPackage(String packageName) throws Exception{
-        System.out.println("扫描包"+packageName);
+    protected BeanDefinition wrapper(Class<?> type) {
+        BeanDefinition beanDefinition = new BeanDefinition(type);
+        beanDefinitionMap.containsKey(beanDefinition.getName());
+        beanDefinitionMap.put(beanDefinition.getName(), beanDefinition);
+        return beanDefinition;
+    }
+
+    private List<Class<?>> scanPackage(String packageName) throws Exception {
+        System.out.println("扫描包" + packageName);
         List<Class<?>> classList = new ArrayList<>();
         // a.b.c
         URL resource = this.getClass().getClassLoader().getResource(packageName.replace(".", File.separator));
@@ -68,12 +90,12 @@ public class ApplicationContext {
             path = Paths.get(resource.toURI());
         }
         if (path != null) {
-            Files.walkFileTree(path, new SimpleFileVisitor<>(){
+            Files.walkFileTree(path, new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     System.out.println("文件：" + file);
                     Path absolutePath = file.toAbsolutePath();
-                    if(absolutePath.toString().endsWith(".class")){
+                    if (absolutePath.toString().endsWith(".class")) {
                         String replaceStr = absolutePath.toString().replace(File.separator, ".");
                         int packageIndex = replaceStr.indexOf(packageName);
                         String className = replaceStr.substring(packageIndex, replaceStr.length() - ".class".length());
@@ -90,18 +112,29 @@ public class ApplicationContext {
         return classList;
     }
 
-    public Object getBean(String name){
-        return this.ioc.get(name);
+    public Object getBean(String name) {
+        if(name == null)
+            return null;
+        Object bean = this.ioc.get(name);
+        if(bean!=null){
+            return bean;
+        }
+        if(beanDefinitionMap.containsKey(name)){
+            return createBean(beanDefinitionMap.get(name));
+        }
+        return null;
     }
 
-    public <T> T getBean(Class<T> beanType){
-        return this.ioc.values().stream()
-                .filter(bean -> beanType.isAnnotationPresent((Class<? extends Annotation>) bean.getClass()))
-                .map(bean -> (T) bean)
-                .findAny().orElseGet(null);
+    public <T> T getBean(Class<T> beanType) {
+        String beanName = this.beanDefinitionMap.values().stream()
+                .filter(bd -> beanType.isAnnotationPresent((Class<? extends Annotation>) bd.getBeanType()))
+                .map(BeanDefinition::getName)
+                .findFirst()
+                .orElse(null);
+        return (T) getBean(beanName);
     }
 
-    public <T> List<T> getBeans(Class<T> beanType){
+    public <T> List<T> getBeans(Class<T> beanType) {
         return this.ioc.values().stream()
                 .filter(bean -> beanType.isAnnotationPresent((Class<? extends Annotation>) bean.getClass()))
                 .map(bean -> (T) bean)

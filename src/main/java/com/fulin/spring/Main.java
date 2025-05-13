@@ -10,8 +10,6 @@ import java.net.URISyntaxException;
  **/
 public class Main {
     public static void main(String[] args) throws Exception {
-        ApplicationContext ioc = new ApplicationContext("com.fulin.spring");
-        Object dog = ioc.getBean("myDog");
-        System.out.println(dog);
+        new ApplicationContext("com.fulin.spring");
     }
 }
