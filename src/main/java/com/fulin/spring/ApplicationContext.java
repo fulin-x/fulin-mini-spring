@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * @Author: Fulin
@@ -30,6 +29,8 @@ public class ApplicationContext {
 
     private Map<String, Object> ioc = new HashMap<>();
 
+    private Map<String,Object> lodingIoc = new HashMap<>();
+
     public void initContext(String packageName) throws Exception {
         scanPackage(packageName).stream().filter(this::scanCreate).forEach(this::wrapper);
         beanDefinitionMap.values().forEach(this::createBean);
@@ -45,6 +46,10 @@ public class ApplicationContext {
         if (ioc.containsKey(name)) {
             return ioc.get(name);
         }
+        // 二级缓存
+        if(lodingIoc.containsKey(name)) {
+            return lodingIoc.get(name);
+        }
         return doCreateBean(beanDefinition);
     }
 
@@ -53,12 +58,13 @@ public class ApplicationContext {
         Object bean = null;
         try {
             bean = constructor.newInstance();
+            lodingIoc.put(beanDefinition.getName(),bean);
             autowiredBean(bean,beanDefinition);
             Method postConstructMethod = beanDefinition.getPostConstructMethod();
             if (postConstructMethod != null) {
                 postConstructMethod.invoke(bean);
             }
-            ioc.put(beanDefinition.getName(), bean);
+            ioc.put(beanDefinition.getName(), lodingIoc.remove(beanDefinition.getName()));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -68,8 +74,7 @@ public class ApplicationContext {
     private void autowiredBean(Object bean, BeanDefinition beanDefinition) throws IllegalAccessException {
         for (Field autowriedField : beanDefinition.getAutowriedFields()) {
             autowriedField.setAccessible(true);
-            Object autowiredBean = null;
-            autowriedField.set(bean, ioc.get(autowriedField.getName()));
+            autowriedField.set(bean, getBean(autowriedField.getType()));
         }
     }
 
@@ -127,7 +132,7 @@ public class ApplicationContext {
 
     public <T> T getBean(Class<T> beanType) {
         String beanName = this.beanDefinitionMap.values().stream()
-                .filter(bd -> beanType.isAnnotationPresent((Class<? extends Annotation>) bd.getBeanType()))
+                .filter(bd -> beanType.isAssignableFrom(bd.getBeanType()))
                 .map(BeanDefinition::getName)
                 .findFirst()
                 .orElse(null);
@@ -135,8 +140,10 @@ public class ApplicationContext {
     }
 
     public <T> List<T> getBeans(Class<T> beanType) {
-        return this.ioc.values().stream()
-                .filter(bean -> beanType.isAnnotationPresent((Class<? extends Annotation>) bean.getClass()))
+        return this.beanDefinitionMap.values().stream()
+                .filter(bd -> beanType.isAssignableFrom(bd.getBeanType()))
+                .map(BeanDefinition::getName)
+                .map(this::getBean)
                 .map(bean -> (T) bean)
                 .toList();
     }

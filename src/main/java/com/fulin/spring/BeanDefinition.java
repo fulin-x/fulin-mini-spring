@@ -35,7 +35,8 @@ public class BeanDefinition {
             this.postConstructMethod =
                     Arrays.stream(type.getDeclaredMethods()).filter(m -> m.isAnnotationPresent(PostConstruct.class))
                             .findFirst().orElse(null);
-            this.autowriedFields = Arrays.stream(type.getDeclaredFields()).filter(f -> f.isAnnotationPresent(Autowired.class))
+            this.autowriedFields = Arrays.stream(type.getDeclaredFields())
+                    .filter(f -> f.isAnnotationPresent(Autowired.class))
                     .toList();
         } catch (NoSuchMethodException e) {
             throw new RuntimeException(e);
