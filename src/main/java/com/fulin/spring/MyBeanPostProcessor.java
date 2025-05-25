@@ -1,7 +1,4 @@
-package com.fulin.spring.sub;
-
-import com.fulin.spring.BeanPostProcessor;
-import com.fulin.spring.Component;
+package com.fulin.spring;
 
 /**
  * @Author: Fulin

@@ -1,8 +1,5 @@
 package com.fulin.spring;
 
-import com.fulin.spring.sub.Autowired;
-import com.fulin.spring.sub.PostConstruct;
-
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;

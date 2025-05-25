@@ -1,4 +1,4 @@
-package com.fulin.spring.sub;
+package com.fulin.spring;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -7,10 +7,10 @@ import java.lang.annotation.Target;
 
 /**
  * @Author: Fulin
- * @Description: Autowired
- * @DateTime: 2025/5/13 下午11:50
+ * @Description: PostConstruct
+ * @DateTime: 2025/5/13 下午11:51
  **/
-@Target(ElementType.FIELD)
+@Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Autowired {
+public @interface PostConstruct {
 }
